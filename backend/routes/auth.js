@@ -160,9 +160,10 @@ router.get('/profile', authenticateToken, async (req, res) => {
   }
 });
 
-// Update hourly rate
+// Update hourly rate (supports optional effectiveFrom date for applying prospectively)
 router.put('/hourly-rate', authenticateToken, [
-  body('hourlyRate').isFloat({ min: 0 })
+  body('hourlyRate').isFloat({ min: 0 }),
+  body('effectiveFrom').optional().isISO8601()
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -170,10 +171,20 @@ router.put('/hourly-rate', authenticateToken, [
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { hourlyRate } = req.body;
+    const { hourlyRate, effectiveFrom } = req.body;
+    // Always keep latest rate on user table for convenience
     await db.query('UPDATE user SET hourly_rate = ? WHERE id = ?', [hourlyRate, req.user.userId]);
 
-    res.json({ message: 'Hourly rate updated successfully', hourlyRate });
+    // Also record into user_hourly_rates history if effectiveFrom provided
+    if (effectiveFrom) {
+      await db.query(
+        `INSERT INTO user_hourly_rates (user_id, hourly_rate, effective_from)
+         VALUES (?, ?, ?)`,
+        [req.user.userId, hourlyRate, effectiveFrom]
+      );
+    }
+
+    res.json({ message: 'Hourly rate updated successfully', hourlyRate, effectiveFrom: effectiveFrom || null });
   } catch (error) {
     console.error('Hourly rate update error:', error);
     res.status(500).json({ message: 'Internal server error' });

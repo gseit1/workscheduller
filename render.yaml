@@ -1,0 +1,46 @@
+# Render Blueprint for Job Analytics Backend
+
+services:
+  # Backend API Service
+  - type: web
+    name: job-analytics-api
+    runtime: node
+    region: oregon # Choose: oregon, frankfurt, singapore, ohio
+    plan: free # or starter/standard for better performance
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/auth/health
+    
+    envVars:
+      - key: NODE_ENV
+        value: production
+      
+      - key: PORT
+        value: 3001
+      
+      # MongoDB Connection (Add in Render Dashboard)
+      - key: MONGODB_URI
+        sync: false # Set manually in dashboard
+      
+      # JWT Secret (Generate a strong secret)
+      - key: JWT_SECRET
+        generateValue: true
+      
+      # CORS Origin (Your Netlify URL)
+      - key: CORS_ORIGIN
+        sync: false # Set to your Netlify URL
+      
+      # Rate Limiting
+      - key: RATE_LIMIT_WINDOW
+        value: 15
+      
+      - key: RATE_LIMIT_MAX
+        value: 100
+
+# Database (if using Render's MongoDB)
+# databases:
+#   - name: job-analytics-db
+#     databaseName: job_analytics
+#     user: analytics_user
+#     region: oregon

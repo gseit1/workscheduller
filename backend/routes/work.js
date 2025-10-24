@@ -55,8 +55,13 @@ router.get('/days', authenticateToken, async (req, res) => {
     }
 
     const workDays = await db.query(
-      `SELECT wd.*, u.hourly_rate, 
-             ROUND(wd.hours_worked * u.hourly_rate, 2) as calculated_payment,
+      `SELECT wd.*, u.hourly_rate,
+             ROUND(wd.hours_worked * (
+               SELECT r.hourly_rate FROM user_hourly_rates r
+               WHERE r.user_id = wd.user_id AND r.effective_from <= wd.work_date
+               ORDER BY r.effective_from DESC
+               LIMIT 1
+             ), 2) as calculated_payment,
              ROUND(IFNULL(wd.tips_amount, 0), 2) as tips_amount,
              wd.payment_status,
              wd.payment_date
@@ -115,10 +120,10 @@ router.post('/days', authenticateToken, [
       notes
     });
 
-    // Convert empty strings to null for time fields
-    const processedStartTime = startTime === '' ? null : startTime;
-    const processedEndTime = endTime === '' ? null : endTime;
-    const processedTipsAmount = tipsAmount === '' || isNaN(tipsAmount) ? 0 : parseFloat(tipsAmount);
+    // Convert empty strings and undefined to null for time fields
+    const processedStartTime = (!startTime || startTime === '') ? null : startTime;
+    const processedEndTime = (!endTime || endTime === '') ? null : endTime;
+    const processedTipsAmount = (!tipsAmount || tipsAmount === '' || isNaN(tipsAmount)) ? 0 : parseFloat(tipsAmount);
 
     console.log('Processed data:', {
       processedStartTime,
@@ -174,10 +179,10 @@ router.put('/days/:id', authenticateToken, [
     const { id } = req.params;
     const { startTime, endTime, hoursWorked, tipsAmount = 0, notes = '' } = req.body;
 
-    // Convert empty strings to null for time fields
-    const processedStartTime = startTime === '' ? null : startTime;
-    const processedEndTime = endTime === '' ? null : endTime;
-    const processedTipsAmount = tipsAmount === '' || isNaN(tipsAmount) ? 0 : parseFloat(tipsAmount);
+    // Convert empty strings and undefined to null for time fields
+    const processedStartTime = (!startTime || startTime === '') ? null : startTime;
+    const processedEndTime = (!endTime || endTime === '') ? null : endTime;
+    const processedTipsAmount = (!tipsAmount || tipsAmount === '' || isNaN(tipsAmount)) ? 0 : parseFloat(tipsAmount);
 
     const result = await db.query(
       'UPDATE work_days SET start_time = ?, end_time = ?, hours_worked = ?, tips_amount = ?, notes = ? WHERE id = ? AND user_id = ?',
@@ -267,13 +272,18 @@ router.get('/stats/monthly', authenticateToken, async (req, res) => {
         COUNT(*) as days_worked,
         SUM(hours_worked) as total_hours,
         AVG(hours_worked) as avg_hours_per_day,
-        ROUND(SUM(hours_worked * (SELECT hourly_rate FROM user WHERE id = ?)), 2) as total_earnings,
+        ROUND(SUM(hours_worked * (
+          SELECT r.hourly_rate FROM user_hourly_rates r
+          WHERE r.user_id = wd.user_id AND r.effective_from <= wd.work_date
+          ORDER BY r.effective_from DESC
+          LIMIT 1
+        )), 2) as total_earnings,
         ROUND(SUM(IFNULL(tips_amount, 0)), 2) as total_tips
-      FROM work_days 
+      FROM work_days wd
       WHERE user_id = ? AND YEAR(work_date) = ?
       GROUP BY YEAR(work_date), MONTH(work_date)
       ORDER BY month
-    `, [req.user.userId, req.user.userId, year]);
+    `, [req.user.userId, year]);
 
     res.json(monthlyStats);
   } catch (error) {
@@ -411,23 +421,22 @@ router.get('/calendar/monthly', authenticateToken, async (req, res) => {
     // Get actual work days for the month
     const workedDays = await db.query(`
       SELECT 
-        DATE_FORMAT(work_date, '%Y-%m-%d') as work_date,
-        hours_worked as hours,
-        calculated_payment,
-        tips_amount,
-        payment_status,
+        wd.id,
+        DATE_FORMAT(wd.work_date, '%Y-%m-%d') as work_date,
+        wd.hours_worked as hours,
+        ROUND(wd.hours_worked * (
+          SELECT r.hourly_rate FROM user_hourly_rates r
+          WHERE r.user_id = wd.user_id AND r.effective_from <= wd.work_date
+          ORDER BY r.effective_from DESC
+          LIMIT 1
+        ), 2) as calculated_payment,
+        wd.tips_amount,
+        wd.payment_status,
+        wd.notes,
         'worked' as status
-      FROM (
-        SELECT 
-          wd.work_date,
-          wd.hours_worked,
-          ROUND(wd.hours_worked * u.hourly_rate, 2) as calculated_payment,
-          wd.tips_amount,
-          wd.payment_status
-        FROM work_days wd
-        JOIN user u ON wd.user_id = u.id
-        WHERE wd.user_id = ? AND MONTH(wd.work_date) = ? AND YEAR(wd.work_date) = ?
-      ) AS work_summary
+      FROM work_days wd
+      JOIN user u ON wd.user_id = u.id
+      WHERE wd.user_id = ? AND MONTH(wd.work_date) = ? AND YEAR(wd.work_date) = ?
     `, [req.user.userId, targetMonth, targetYear]);
 
     // Get skipped days
@@ -504,12 +513,17 @@ router.get('/payment/summary', authenticateToken, async (req, res) => {
       SELECT 
         payment_status,
         COUNT(*) as days_count,
-        ROUND(SUM(hours_worked * (SELECT hourly_rate FROM user WHERE id = ?)), 2) as total_earnings,
+        ROUND(SUM(hours_worked * (
+          SELECT r.hourly_rate FROM user_hourly_rates r
+          WHERE r.user_id = wd.user_id AND r.effective_from <= wd.work_date
+          ORDER BY r.effective_from DESC
+          LIMIT 1
+        )), 2) as total_earnings,
         ROUND(SUM(IFNULL(tips_amount, 0)), 2) as total_tips
-      FROM work_days 
+      FROM work_days wd
       WHERE user_id = ? AND MONTH(work_date) = ? AND YEAR(work_date) = ?
       GROUP BY payment_status
-    `, [req.user.userId, req.user.userId, currentMonth, currentYear]);
+    `, [req.user.userId, currentMonth, currentYear]);
 
     // Format the response
     const summary = {

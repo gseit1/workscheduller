@@ -21,11 +21,16 @@ router.get('/overview', authenticateToken, async (req, res) => {
         COUNT(*) as days_worked,
         SUM(hours_worked) as total_hours,
         AVG(hours_worked) as avg_hours_per_day,
-        ROUND(SUM(hours_worked * (SELECT hourly_rate FROM user WHERE id = ?)), 2) as total_earnings,
+        ROUND(SUM(hours_worked * (
+          SELECT r.hourly_rate FROM user_hourly_rates r
+          WHERE r.user_id = wd.user_id AND r.effective_from <= wd.work_date
+          ORDER BY r.effective_from DESC
+          LIMIT 1
+        )), 2) as total_earnings,
         ROUND(SUM(IFNULL(tips_amount, 0)), 2) as total_tips
-      FROM work_days 
+      FROM work_days wd
       WHERE user_id = ? AND MONTH(work_date) = ? AND YEAR(work_date) = ?
-    `, [req.user.userId, req.user.userId, currentMonth, currentYear]);
+    `, [req.user.userId, currentMonth, currentYear]);
 
     // Current month expense stats
     const expenseStatsQuery = await db.query(`
@@ -42,12 +47,17 @@ router.get('/overview', authenticateToken, async (req, res) => {
     const ytdWorkStatsQuery = await db.query(`
       SELECT 
         SUM(hours_worked) as total_hours,
-        ROUND(SUM(hours_worked * (SELECT hourly_rate FROM user WHERE id = ?)), 2) as total_earnings,
+        ROUND(SUM(hours_worked * (
+          SELECT r.hourly_rate FROM user_hourly_rates r
+          WHERE r.user_id = wd.user_id AND r.effective_from <= wd.work_date
+          ORDER BY r.effective_from DESC
+          LIMIT 1
+        )), 2) as total_earnings,
         ROUND(SUM(IFNULL(tips_amount, 0)), 2) as total_tips,
         COUNT(*) as days_worked
-      FROM work_days 
+      FROM work_days wd
       WHERE user_id = ? AND work_date BETWEEN ? AND ?
-    `, [req.user.userId, req.user.userId, startOfYearStr, todayStr]);
+    `, [req.user.userId, startOfYearStr, todayStr]);
 
     // Year-to-date expense stats
     const ytdExpenseStatsQuery = await db.query(`
@@ -157,13 +167,18 @@ router.get('/year-overview', authenticateToken, async (req, res) => {
       SELECT 
         MONTH(work_date) as month,
         SUM(hours_worked) as total_hours,
-        SUM(hours_worked * (SELECT hourly_rate FROM user WHERE id = ?)) as total_earnings,
+        SUM(hours_worked * (
+          SELECT r.hourly_rate FROM user_hourly_rates r
+          WHERE r.user_id = wd.user_id AND r.effective_from <= wd.work_date
+          ORDER BY r.effective_from DESC
+          LIMIT 1
+        )) as total_earnings,
         COUNT(*) as days_worked
-      FROM work_days 
+      FROM work_days wd
       WHERE user_id = ? AND YEAR(work_date) = ?
       GROUP BY MONTH(work_date)
       ORDER BY month
-    `, [req.user.userId, req.user.userId, year]);
+    `, [req.user.userId, year]);
 
     // Monthly expenses/income
     const monthlyExpenses = await db.query(`
