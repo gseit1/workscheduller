@@ -110,10 +110,14 @@ if (process.env.NODE_ENV === 'production') {
 // CORS configuration for production
 const corsOptions = {
   origin: function (origin, callback) {
-    // In production, allow CORS_ORIGIN from environment
+    // In production, allow CORS_ORIGIN from environment (comma-separated list)
     // In development, allow localhost
+    const envOrigins = process.env.CORS_ORIGIN 
+      ? process.env.CORS_ORIGIN.split(',').map(o => o.trim())
+      : [];
+    
     const allowedOrigins = [
-      process.env.CORS_ORIGIN,
+      ...envOrigins,
       'http://localhost:8080',
       'http://localhost:8081',
       'http://localhost:3000',
