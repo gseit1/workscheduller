@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-const DEFAULT_PROD_API_ORIGIN = 'https://job-analytics-api.onrender.com'
+const DEFAULT_PROD_API_ORIGIN = 'https://workscheduller.onrender.com'
 
 const normalizeApiBase = (value) => {
   if (!value) return ''
