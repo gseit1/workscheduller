@@ -1,13 +1,28 @@
 import axios from 'axios'
 
+const DEFAULT_PROD_API_ORIGIN = 'https://job-analytics-api.onrender.com'
+
+const normalizeApiBase = (value) => {
+  if (!value) return ''
+
+  const trimmed = String(value).trim().replace(/\/+$/, '')
+  const withoutApiSuffix = trimmed.replace(/\/api$/i, '')
+  return `${withoutApiSuffix}/api`
+}
+
 // Determine base URL based on environment
 const getBaseURL = () => {
+  const configuredBase = process.env.VUE_APP_API_URL || process.env.VITE_API_URL
+
   // Production: use environment variable
   if (process.env.NODE_ENV === 'production') {
-    return process.env.VUE_APP_API_URL 
-      ? `${process.env.VUE_APP_API_URL}/api`
-      : '/api'
+    const normalizedConfiguredBase = normalizeApiBase(configuredBase)
+    if (normalizedConfiguredBase) return normalizedConfiguredBase
+
+    // Netlify fallback to known Render backend if env var is missing.
+    return normalizeApiBase(DEFAULT_PROD_API_ORIGIN)
   }
+
   // Development: use proxy
   return '/api'
 }
