@@ -13,10 +13,21 @@ const normalizeApiBase = (value) => {
 // Determine base URL based on environment
 const getBaseURL = () => {
   const configuredBase = process.env.VUE_APP_API_URL || process.env.VITE_API_URL
+  const normalizedConfiguredBase = normalizeApiBase(configuredBase)
+
+  // Runtime safeguard for deployed frontend: avoid calling Netlify /api.
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname || ''
+    const isNetlifyHost = host.endsWith('.netlify.app')
+    const isVercelHost = host.endsWith('.vercel.app')
+
+    if ((isNetlifyHost || isVercelHost) && !normalizedConfiguredBase) {
+      return normalizeApiBase(DEFAULT_PROD_API_ORIGIN)
+    }
+  }
 
   // Production: use environment variable
   if (process.env.NODE_ENV === 'production') {
-    const normalizedConfiguredBase = normalizeApiBase(configuredBase)
     if (normalizedConfiguredBase) return normalizedConfiguredBase
 
     // Netlify fallback to known Render backend if env var is missing.
