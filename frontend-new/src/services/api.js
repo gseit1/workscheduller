@@ -14,21 +14,16 @@ const isAbsoluteUrl = (value) => /^https?:\/\//i.test(String(value || '').trim()
 
 // Determine base URL based on environment
 const getBaseURL = () => {
-  const configuredBase = process.env.VUE_APP_API_URL || process.env.VITE_API_URL
-  const normalizedConfiguredBase = normalizeApiBase(configuredBase)
-
-  // Runtime safeguard for deployed frontend: avoid calling Netlify /api.
+  // Always override to the real backend when running on the deployed Netlify URL
   if (typeof window !== 'undefined') {
     const host = window.location.hostname || ''
-    const isNetlifyHost = host.endsWith('.netlify.app')
-    const isVercelHost = host.endsWith('.vercel.app')
-
-    const configuredIsRelative = normalizedConfiguredBase && !isAbsoluteUrl(normalizedConfiguredBase)
-
-    if ((isNetlifyHost || isVercelHost) && (!normalizedConfiguredBase || configuredIsRelative)) {
+    if (host.includes('netlify.app') || host.includes('vercel.app')) {
       return normalizeApiBase(DEFAULT_PROD_API_ORIGIN)
     }
   }
+
+  const configuredBase = process.env.VUE_APP_API_URL || process.env.VITE_API_URL
+  const normalizedConfiguredBase = normalizeApiBase(configuredBase)
 
   // Production: use environment variable
   if (process.env.NODE_ENV === 'production') {
