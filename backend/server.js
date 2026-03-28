@@ -121,7 +121,8 @@ const corsOptions = {
       'http://localhost:8080',
       'http://localhost:8081',
       'http://localhost:3000',
-      'http://localhost:5173' // Vite dev server
+      'http://localhost:5173', // Vite dev server
+      'https://hustlerio.netlify.app' // Explicitly allow deployed frontend
     ].filter(Boolean);
     
     // Allow requests with no origin (mobile apps, Postman, etc.)
@@ -130,7 +131,11 @@ const corsOptions = {
     }
     
     // Check if origin is allowed
-    if (allowedOrigins.some(allowed => origin.startsWith(allowed) || origin === allowed)) {
+    const isAllowed = allowedOrigins.some(allowed => origin.startsWith(allowed) || origin === allowed) ||
+                      origin.endsWith('.netlify.app') || 
+                      origin.endsWith('.vercel.app');
+
+    if (isAllowed) {
       callback(null, true);
     } else {
       console.warn(`CORS blocked origin: ${origin}`);
