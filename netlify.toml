@@ -2,7 +2,7 @@
 
 [build]
   base = "frontend-new"
-  command = "npm install --production=false && npm run build"
+  command = "npm install --production=false && node ./node_modules/@vue/cli-service/bin/vue-cli-service.js build"
   publish = "dist"
 
 [build.environment]
