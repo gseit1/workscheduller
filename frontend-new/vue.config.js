@@ -43,6 +43,18 @@ module.exports = defineConfig({
               maxAgeSeconds: 60 * 60 * 24 * 30 // 30 days
             }
           }
+        },
+        {
+          urlPattern: /\/api\//,
+          handler: 'NetworkFirst',
+          options: {
+            cacheName: 'api-cache',
+            networkTimeoutSeconds: 5,
+            expiration: {
+              maxEntries: 50,
+              maxAgeSeconds: 60 * 60 * 24 // 1 day
+            }
+          }
         }
       ]
     }
@@ -69,16 +81,15 @@ module.exports = defineConfig({
       return args
     })
 
-    // Copy service worker and manifest
+    // Copy manifest
     config.plugin('copy').tap(([options]) => {
-      options.patterns.push({
-        from: 'public/service-worker.js',
-        to: 'service-worker.js'
-      })
+      // Avoid copying manifest if PWA plugin handles it, but just in case:
+      /* 
       options.patterns.push({
         from: 'public/manifest.json',
         to: 'manifest.json'
       })
+      */
       return [options]
     })
   }

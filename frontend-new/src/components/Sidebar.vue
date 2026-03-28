@@ -36,6 +36,10 @@
     </nav>
 
     <div class="sidebar-footer">
+      <button v-if="canInstall" class="footer-link install-btn" @click="$emit('install-app')">
+        <i class="bi bi-download"></i>
+        <span>Install App</span>
+      </button>
       <router-link to="/settings" class="footer-link">
         <i class="bi bi-gear"></i>
         <span>Settings</span>
@@ -57,10 +61,14 @@ defineProps({
   open: {
     type: Boolean,
     default: false
+  },
+  canInstall: {
+    type: Boolean,
+    default: false
   }
 })
 
-defineEmits(['close'])
+defineEmits(['close', 'install-app'])
 
 const route = useRoute()
 const authStore = useAuthStore()
@@ -303,6 +311,21 @@ const isActive = (path) => {
       color: var(--text-primary);
     }
     
+    &.install-btn {
+      color: var(--primary);
+      background: rgba(37, 99, 235, 0.1);
+      border: none;
+      width: 100%;
+      cursor: pointer;
+      text-align: left;
+      font-family: inherit;
+
+      &:hover {
+        background: rgba(37, 99, 235, 0.2);
+        color: var(--primary-dark);
+      }
+    }
+
     &.logout {
       color: var(--danger);
       

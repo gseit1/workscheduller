@@ -35,7 +35,13 @@
     </header>
 
     <!-- Sidebar -->
-    <Sidebar v-if="isAuthenticated" :open="sidebarOpen" @close="closeSidebar" />
+    <Sidebar 
+      v-if="isAuthenticated" 
+      :open="sidebarOpen" 
+      :can-install="canInstall"
+      @close="closeSidebar" 
+      @install-app="installApp"
+    />
 
     <!-- Main Content -->
     <main class="main-content" :class="{ 'authenticated': isAuthenticated, 'with-bottom-nav': isAuthenticated }">
