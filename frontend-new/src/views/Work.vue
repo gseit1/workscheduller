@@ -16,17 +16,17 @@
     <div class="work-content">
       <!-- Monthly Statistics -->
       <div class="stats-grid">
-        <div class="stat-card">
+        <div class="stat-card salary">
           <div class="stat-icon">
-            <i class="bi bi-currency-euro"></i>
+            <i class="bi bi-cash-stack"></i>
           </div>
           <div class="stat-details">
-            <span class="stat-label">Total Earnings</span>
-            <span class="stat-value">€{{ monthlyStats.totalEarnings }}</span>
+            <span class="stat-label">Total Salary</span>
+            <span class="stat-value">€{{ monthlyStats.totalSalary }}</span>
           </div>
         </div>
 
-        <div class="stat-card">
+        <div class="stat-card tips">
           <div class="stat-icon">
             <i class="bi bi-wallet2"></i>
           </div>
@@ -36,7 +36,17 @@
           </div>
         </div>
 
-        <div class="stat-card">
+        <div class="stat-card total">
+          <div class="stat-icon">
+            <i class="bi bi-currency-euro"></i>
+          </div>
+          <div class="stat-details">
+            <span class="stat-label">Total (Salary + Tips)</span>
+            <span class="stat-value">€{{ monthlyStats.totalCombined }}</span>
+          </div>
+        </div>
+
+        <div class="stat-card hours">
           <div class="stat-icon">
             <i class="bi bi-clock-history"></i>
           </div>
@@ -46,13 +56,13 @@
           </div>
         </div>
 
-        <div class="stat-card">
+        <div class="stat-card days">
           <div class="stat-icon">
             <i class="bi bi-calendar-check"></i>
           </div>
           <div class="stat-details">
             <span class="stat-label">Days Worked</span>
-            <span class="stat-value">{{ monthlyStats.daysWorked }}/{{ monthlyStats.scheduledDays }}</span>
+            <span class="stat-value">{{ monthlyStats.daysWorked }}</span>
           </div>
         </div>
       </div>
@@ -87,50 +97,32 @@
         </div>
 
         <div v-else class="entries-grid">
-          <div v-for="entry in workEntries" :key="entry.id" class="work-entry-card">
-            <div class="entry-header">
-              <div class="entry-date">
+          <div v-for="entry in workEntries" :key="entry.id" class="work-entry-card compact-card">
+            <div class="entry-row">
+              <div class="entry-date" :title="entry.date">
                 <i class="bi bi-calendar3"></i>
                 <span>{{ entry.date }}</span>
               </div>
-              <div class="entry-actions">
-                <button @click="editEntry(entry)" class="btn btn-sm btn-icon">
-                  <i class="bi bi-pencil"></i>
-                </button>
-                <button @click="deleteEntry(entry)" class="btn btn-sm btn-icon btn-danger">
-                  <i class="bi bi-trash"></i>
-                </button>
-              </div>
-            </div>
-            
-            <div class="entry-body">
-              <div class="entry-stat">
-                <i class="bi bi-clock"></i>
-                <div class="stat-content">
-                  <span class="stat-label">Hours</span>
-                  <span class="stat-value">{{ entry.hours }}</span>
+
+              <div class="entry-metrics">
+                <div class="metric metric-hours" title="Hours worked">
+                  <i class="bi bi-clock"></i>
+                  <span>{{ entry.hours }}h</span>
                 </div>
-              </div>
-              
-              <div class="entry-stat">
-                <i class="bi bi-cash-coin"></i>
-                <div class="stat-content">
-                  <span class="stat-label">Earnings</span>
-                  <span class="stat-value">€{{ entry.earnings }}</span>
+                <div class="metric metric-earned" title="Total earned">
+                  <i class="bi bi-cash-coin"></i>
+                  <span>€{{ entry.earnings }}</span>
                 </div>
               </div>
 
-              <div class="entry-stat" v-if="entry.tips > 0">
-                <i class="bi bi-wallet2"></i>
-                <div class="stat-content">
-                  <span class="stat-label">Tips</span>
-                  <span class="stat-value">€{{ entry.tips }}</span>
-                </div>
+              <div class="entry-actions">
+                <button @click="editEntry(entry)" class="btn btn-sm btn-icon" title="Edit entry">
+                  <i class="bi bi-pencil"></i>
+                </button>
+                <button @click="deleteEntry(entry)" class="btn btn-sm btn-icon btn-danger" title="Delete entry">
+                  <i class="bi bi-trash"></i>
+                </button>
               </div>
-            </div>
-            
-            <div v-if="entry.description" class="entry-description">
-              <p>{{ entry.description }}</p>
             </div>
           </div>
         </div>
@@ -139,7 +131,7 @@
 
     <!-- Add/Edit Work Modal -->
     <div v-if="showAddModal" class="modal-overlay" @click="closeModal">
-      <div class="modal-content" @click.stop>
+      <div class="modal-content work-modal" @click.stop>
         <div class="modal-header">
           <h2>{{ editingEntry ? 'Edit Work Entry' : 'Add Work Entry' }}</h2>
           <button class="btn-close" @click="closeModal">
@@ -147,7 +139,7 @@
           </button>
         </div>
 
-        <form @submit.prevent="handleSubmit" class="modal-body">
+        <form @submit.prevent="handleSubmit" class="modal-body work-modal-body">
           <div class="form-group">
             <label for="workDate">
               <i class="bi bi-calendar3"></i>
@@ -243,7 +235,7 @@
             </div>
           </div>
 
-          <div class="modal-actions">
+          <div class="modal-actions work-modal-actions">
             <button type="button" class="btn btn-secondary" @click="closeModal">
               Cancel
             </button>
@@ -259,7 +251,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { format, addMonths, subMonths } from 'date-fns'
 import api from '../services/api'
 import { useToast } from 'vue-toastification'
@@ -276,11 +268,11 @@ const submitting = ref(false)
 
 // Monthly statistics
 const monthlyStats = ref({
-  totalEarnings: 0,
+  totalSalary: 0,
   totalTips: 0,
+  totalCombined: 0,
   totalHours: 0,
-  daysWorked: 0,
-  scheduledDays: 0
+  daysWorked: 0
 })
 
 const formData = ref({
@@ -384,30 +376,25 @@ const fetchMonthlyStats = async () => {
     const workData = workResponse.data.workDays || []
     
     // Calculate stats from work days
-    let totalEarnings = 0
+    let totalSalary = 0
     let totalTips = 0
     let totalHours = 0
     
     workData.forEach(day => {
       const baseEarnings = day.hoursWorked * day.hourlyRate
       const tips = day.tipsAmount || 0
-      totalEarnings += baseEarnings + tips
+      totalSalary += baseEarnings
       totalTips += tips
       totalHours += day.hoursWorked
     })
-    
-    // Fetch scheduled days count
-    const calendarResponse = await api.get('/calendar/events', {
-      params: { month, year }
-    })
-    const scheduledDays = calendarResponse.data.events?.length || 0
+    const totalCombined = totalSalary + totalTips
     
     monthlyStats.value = {
-      totalEarnings: totalEarnings.toFixed(2),
+      totalSalary: totalSalary.toFixed(2),
       totalTips: totalTips.toFixed(2),
+      totalCombined: totalCombined.toFixed(2),
       totalHours: totalHours.toFixed(1),
-      daysWorked: workData.length,
-      scheduledDays: scheduledDays
+      daysWorked: workData.length
     }
   } catch (error) {
     console.error('Error fetching monthly stats:', error)
@@ -477,6 +464,14 @@ onMounted(() => {
 .work-page {
   max-width: 1200px;
   margin: 0 auto;
+  width: 100%;
+  padding-inline: clamp(0.75rem, 2.8vw, 1.5rem);
+  padding-bottom: calc(var(--spacing-lg) + 5rem + env(safe-area-inset-bottom));
+}
+
+.work-content {
+  display: grid;
+  gap: var(--spacing-lg);
 }
 
 .page-header {
@@ -499,24 +494,29 @@ onMounted(() => {
       color: var(--text-secondary);
     }
   }
+
+  .header-actions .btn {
+    min-height: 44px;
+  }
 }
 
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: var(--spacing-lg);
-  margin-bottom: var(--spacing-xl);
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: clamp(0.55rem, 1.8vw, 0.9rem);
 }
 
 .stat-card {
   background: var(--bg-primary);
   border-radius: var(--radius-lg);
-  padding: var(--spacing-lg);
+  padding: clamp(0.875rem, 2vw, 1.25rem);
+  border: 1px solid var(--border-light);
   display: flex;
   align-items: center;
   gap: var(--spacing-md);
   box-shadow: var(--shadow-sm);
   transition: transform 0.2s;
+  min-width: 0;
 
   &:hover {
     transform: translateY(-2px);
@@ -524,19 +524,20 @@ onMounted(() => {
   }
 
   .stat-icon {
-    width: 60px;
-    height: 60px;
+    width: 50px;
+    height: 50px;
     border-radius: var(--radius-md);
     background: var(--primary-light);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.5rem;
+    font-size: 1.2rem;
     color: var(--primary);
   }
 
   .stat-details {
     flex: 1;
+    min-width: 0;
     display: flex;
     flex-direction: column;
     gap: var(--spacing-xs);
@@ -548,18 +549,43 @@ onMounted(() => {
     }
 
     .stat-value {
-      font-size: 1.5rem;
+      font-size: 1.28rem;
       font-weight: 700;
       color: var(--text-primary);
     }
   }
 }
 
+.stat-card.salary .stat-icon {
+  background: rgba(37, 99, 235, 0.12);
+  color: var(--primary);
+}
+
+.stat-card.tips .stat-icon {
+  background: rgba(245, 158, 11, 0.14);
+  color: var(--warning);
+}
+
+.stat-card.total .stat-icon {
+  background: rgba(16, 185, 129, 0.14);
+  color: var(--success);
+}
+
+.stat-card.hours .stat-icon {
+  background: rgba(139, 92, 246, 0.12);
+  color: #8b5cf6;
+}
+
+.stat-card.days .stat-icon {
+  background: rgba(20, 184, 166, 0.14);
+  color: #0d9488;
+}
+
 .filters-bar {
   background: var(--bg-primary);
   border-radius: var(--radius-lg);
-  padding: var(--spacing-lg);
-  margin-bottom: var(--spacing-lg);
+  padding: clamp(0.75rem, 1.9vw, 1.1rem);
+  border: 1px solid var(--border-light);
   box-shadow: var(--shadow-sm);
   
   .filter-group {
@@ -575,12 +601,13 @@ onMounted(() => {
       display: flex;
       align-items: center;
       gap: var(--spacing-md);
+      flex-wrap: wrap;
       
       .current-month {
         font-size: 1.125rem;
         font-weight: 700;
         color: var(--text-primary);
-        min-width: 200px;
+        min-width: 180px;
         text-align: center;
       }
       
@@ -592,13 +619,17 @@ onMounted(() => {
         justify-content: center;
         padding: 0;
       }
+
+      .btn-sm {
+        min-height: 40px;
+      }
     }
   }
 }
 
 .empty-state {
   text-align: center;
-  padding: var(--spacing-3xl) var(--spacing-xl);
+  padding: var(--spacing-2xl) var(--spacing-xl);
   background: var(--bg-primary);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
@@ -625,107 +656,267 @@ onMounted(() => {
 
 .entries-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: var(--spacing-lg);
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 0.65rem;
 }
 
 .work-entry-card {
   background: var(--bg-primary);
   border-radius: var(--radius-lg);
-  padding: var(--spacing-lg);
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--border-light);
   box-shadow: var(--shadow-sm);
-  transition: all 0.3s;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+  min-width: 0;
   
   &:hover {
     box-shadow: var(--shadow-md);
-    transform: translateY(-2px);
+    transform: translateY(-1px);
   }
-  
-  .entry-header {
+
+  .entry-row {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: var(--spacing-md);
-    padding-bottom: var(--spacing-md);
-    border-bottom: 1px solid var(--border-color);
-    
-    .entry-date {
-      display: flex;
-      align-items: center;
-      gap: var(--spacing-sm);
-      font-weight: 600;
-      color: var(--text-primary);
+    gap: 0.4rem;
+  }
+
+  .entry-date {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    min-width: 0;
+    flex: 1 1 auto;
+    font-weight: 600;
+    color: var(--text-primary);
+    font-size: 0.82rem;
+
+    i {
+      color: var(--text-secondary);
+      font-size: 0.85rem;
+      flex-shrink: 0;
     }
-    
-    .entry-actions {
-      display: flex;
-      gap: var(--spacing-sm);
+
+    span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
   }
-  
-  .entry-body {
+
+  .entry-metrics {
     display: flex;
-    flex-wrap: wrap;
-    gap: var(--spacing-lg);
-    margin-bottom: var(--spacing-md);
-    
-    .entry-stat {
-      display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    flex: 0 1 auto;
+
+    .metric {
+      display: inline-flex;
       align-items: center;
-      gap: var(--spacing-sm);
-      flex: 0 0 auto;
-      
+      gap: 0.3rem;
+      font-weight: 700;
+      font-size: 0.78rem;
+      white-space: nowrap;
+
       i {
-        font-size: 1.5rem;
+        font-size: 0.8rem;
+      }
+    }
+
+    .metric-hours {
+      color: var(--text-primary);
+
+      i {
         color: var(--primary);
       }
-      
-      .stat-content {
-        display: flex;
-        flex-direction: column;
-        
-        .stat-label {
-          font-size: 0.75rem;
-          color: var(--text-secondary);
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
-        }
-        
-        .stat-value {
-          font-size: 1.25rem;
-          font-weight: 700;
-          color: var(--text-primary);
-        }
+    }
+
+    .metric-earned {
+      color: var(--success);
+
+      i {
+        color: var(--success);
       }
     }
   }
-  
-  .entry-description {
-    padding-top: var(--spacing-md);
-    border-top: 1px solid var(--border-color);
-    
-    p {
-      color: var(--text-secondary);
-      font-size: 0.875rem;
-      line-height: 1.5;
-      margin: 0;
+
+  .entry-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    flex-shrink: 0;
+
+    .btn.btn-sm.btn-icon {
+      width: 30px;
+      height: 30px;
+      min-height: 30px;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
     }
   }
 }
 
 @media (max-width: 768px) {
+  .work-page {
+    padding-inline: 0.75rem;
+  }
+
   .page-header {
+    margin-bottom: var(--spacing-lg);
+    align-items: flex-start;
+
     .header-content h1 {
       font-size: 1.5rem;
+    }
+
+    .header-actions {
+      width: 100%;
+
+      .btn {
+        width: 100%;
+        min-height: 46px;
+      }
+    }
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--spacing-sm);
+  }
+
+  .stat-card {
+    align-items: flex-start;
+    gap: 0.65rem;
+
+    .stat-icon {
+      width: 40px;
+      height: 40px;
+      font-size: 1.1rem;
+    }
+
+    .stat-details .stat-value {
+      font-size: 1.1rem;
+    }
+  }
+
+  .filters-bar .filter-group {
+    .date-navigation {
+      display: grid;
+      grid-template-columns: 40px minmax(0, 1fr) 40px;
+      gap: var(--spacing-sm);
+      align-items: center;
+
+      .current-month {
+        min-width: 0;
+        width: 100%;
+        font-size: 0.98rem;
+      }
+
+      .btn-sm {
+        grid-column: 1 / -1;
+        width: 100%;
+      }
     }
   }
   
   .entries-grid {
     grid-template-columns: 1fr;
+    gap: var(--spacing-md);
   }
   
-  .filters-bar .filter-group .form-select {
-    width: 100%;
+  .work-entry-card {
+    padding: 0.55rem 0.6rem;
+
+    .entry-row {
+      gap: 0.45rem;
+    }
+
+    .entry-date {
+      font-size: 0.8rem;
+    }
+
+    .entry-metrics {
+      gap: 0.45rem;
+
+      .metric {
+        font-size: 0.76rem;
+      }
+    }
+
+    .entry-actions .btn.btn-sm.btn-icon {
+      width: 30px;
+      height: 30px;
+      min-height: 30px;
+    }
+  }
+}
+
+@media (max-width: 520px) {
+  .work-page {
+    padding-inline: 0.625rem;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .filters-bar .filter-group .date-navigation {
+    grid-template-columns: 36px minmax(0, 1fr) 36px;
+  }
+
+  .work-entry-card {
+    padding: 0.5rem 0.55rem;
+
+    .entry-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-areas:
+        'date actions'
+        'metrics actions';
+      column-gap: 0.4rem;
+      row-gap: 0.25rem;
+    }
+
+    .entry-date {
+      grid-area: date;
+      font-size: 0.76rem;
+    }
+
+    .entry-metrics {
+      grid-area: metrics;
+      gap: 0.4rem;
+
+      .metric {
+        font-size: 0.72rem;
+      }
+    }
+
+    .entry-actions {
+      grid-area: actions;
+      align-self: center;
+      justify-self: end;
+    }
+  }
+
+  .empty-state {
+    padding: var(--spacing-xl) var(--spacing-md);
+
+    i {
+      font-size: 2.5rem;
+      margin-bottom: var(--spacing-md);
+    }
+
+    h3 {
+      font-size: 1.15rem;
+    }
+  }
+}
+
+@media (max-width: 380px) {
+  .stats-grid {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -740,7 +931,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  z-index: 1300;
   padding: var(--spacing-lg);
   backdrop-filter: blur(4px);
 }
@@ -750,8 +941,11 @@ onMounted(() => {
   border-radius: var(--radius-xl);
   max-width: 600px;
   width: 100%;
+  display: flex;
+  flex-direction: column;
   max-height: 90vh;
   overflow-y: auto;
+  overscroll-behavior: contain;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
 }
 
@@ -788,6 +982,8 @@ onMounted(() => {
 
 .modal-body {
   padding: var(--spacing-xl);
+  display: flex;
+  flex-direction: column;
   
   .form-group {
     margin-bottom: var(--spacing-lg);
@@ -880,6 +1076,7 @@ onMounted(() => {
   justify-content: flex-end;
   padding-top: var(--spacing-lg);
   border-top: 1px solid var(--border-color);
+  margin-top: var(--spacing-sm);
   
   .btn {
     min-width: 120px;
@@ -893,6 +1090,77 @@ onMounted(() => {
       border-radius: 50%;
       animation: spin 0.6s linear infinite;
     }
+  }
+}
+
+.work-modal {
+  width: min(600px, calc(100vw - 2rem));
+}
+
+.work-modal-body {
+  padding-bottom: max(var(--spacing-lg), env(safe-area-inset-bottom));
+}
+
+@media (max-width: 640px) {
+  .modal-overlay {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .modal-content {
+    max-width: 100%;
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    height: 70dvh;
+    max-height: 70dvh;
+  }
+
+  .modal-header,
+  .modal-body {
+    padding: var(--spacing-lg);
+  }
+
+  .modal-header {
+    h2 {
+      font-size: 1.15rem;
+      line-height: 1.25;
+      margin-right: var(--spacing-sm);
+    }
+  }
+
+  .modal-body .form-group {
+    margin-bottom: var(--spacing-md);
+
+    .form-input {
+      font-size: 16px;
+    }
+  }
+
+  .earnings-preview {
+    padding: var(--spacing-md);
+
+    .preview-item {
+      font-size: 0.92rem;
+    }
+
+    .preview-item.total strong {
+      font-size: 1.2rem;
+    }
+  }
+
+  .modal-actions {
+    flex-direction: column-reverse;
+    gap: var(--spacing-sm);
+    margin-top: var(--spacing-md);
+    padding-top: var(--spacing-md);
+
+    .btn {
+      width: 100%;
+      min-width: 0;
+    }
+  }
+
+  .work-modal-body {
+    padding-bottom: calc(var(--spacing-lg) + env(safe-area-inset-bottom));
   }
 }
 

@@ -27,7 +27,23 @@
       </button>
     </div>
 
-    <div class="calendar-grid">
+    <div class="calendar-summary">
+      <div class="summary-chip">
+        <span class="chip-label">Worked Days</span>
+        <strong>{{ monthSummary.workedDays }}</strong>
+      </div>
+      <div class="summary-chip">
+        <span class="chip-label">Scheduled</span>
+        <strong>{{ monthSummary.scheduledDays }}</strong>
+      </div>
+      <div class="summary-chip earnings">
+        <span class="chip-label">Month Earnings</span>
+        <strong>€{{ monthSummary.earnings }}</strong>
+      </div>
+    </div>
+
+    <div class="calendar-grid-scroll">
+      <div class="calendar-grid">
       <div class="calendar-header">
         <div class="day-label" v-for="day in daysOfWeek" :key="day">{{ day }}</div>
       </div>
@@ -56,7 +72,6 @@
               </div>
             </div>
             <div v-else-if="day.isScheduled" class="day-details">
-              <div class="scheduled-label">Scheduled</div>
               <div class="day-actions">
                 <button @click.stop="editScheduledDay(day)" class="btn-icon-sm" title="Edit">
                   <i class="bi bi-pencil"></i>
@@ -68,6 +83,7 @@
             </div>
           </div>
         </div>
+      </div>
       </div>
     </div>
 
@@ -84,22 +100,35 @@
 
     <!-- Schedule Day Modal -->
     <div v-if="showScheduleModal" class="modal-overlay" @click="closeScheduleModal">
-      <div class="modal-content" @click.stop>
+      <div class="modal-content schedule-modal" @click.stop>
         <div class="modal-header">
           <h3>{{ editingSchedule ? 'Edit Scheduled Day' : 'Schedule Work Day' }}</h3>
           <button class="btn-close" @click="closeScheduleModal">
             <i class="bi bi-x"></i>
           </button>
         </div>
-        <div class="modal-body">
+        <div class="modal-body schedule-modal-body">
           <div class="form-group">
             <label>Date</label>
             <input 
+              ref="scheduleDateInput"
               v-model="scheduleForm.date" 
               type="date" 
               class="form-control"
               required
             />
+          </div>
+          <div class="schedule-calendar-element" aria-label="Calendar quick selector">
+            <div class="calendar-element-header">
+              <i class="bi bi-calendar3"></i>
+              <span>{{ scheduleForm.date ? formatScheduleDate(scheduleForm.date) : 'Choose a date for this schedule' }}</span>
+            </div>
+            <div class="calendar-quick-actions">
+              <button type="button" class="calendar-chip" @click="setScheduleDateOffset(0)">Today</button>
+              <button type="button" class="calendar-chip" @click="setScheduleDateOffset(1)">Tomorrow</button>
+              <button type="button" class="calendar-chip" @click="setScheduleDateOffset(7)">+ 7 Days</button>
+              <button type="button" class="calendar-chip primary" @click="openScheduleDatePicker">Open Calendar</button>
+            </div>
           </div>
           <div class="form-group">
             <label>Title (Optional)</label>
@@ -120,7 +149,7 @@
             ></textarea>
           </div>
         </div>
-        <div class="modal-footer">
+        <div class="modal-footer schedule-modal-footer">
           <button class="btn btn-secondary" @click="closeScheduleModal">Cancel</button>
           <button class="btn btn-primary" @click="saveScheduledDay" :disabled="!scheduleForm.date">
             {{ editingSchedule ? 'Update' : 'Schedule' }}
@@ -212,7 +241,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isToday, addMonths, subMonths } from 'date-fns'
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isToday, addMonths, subMonths, addDays, parseISO } from 'date-fns'
 import api from '../services/api'
 import { useToast } from 'vue-toastification'
 
@@ -228,6 +257,7 @@ const loading = ref(false)
 // Schedule modal state
 const showScheduleModal = ref(false)
 const editingSchedule = ref(false)
+const scheduleDateInput = ref(null)
 const scheduleForm = ref({
   id: null,
   date: '',
@@ -249,6 +279,46 @@ const workForm = ref({
 const currentMonthYear = computed(() => {
   return format(currentDate.value, 'MMMM yyyy')
 })
+
+const monthSummary = computed(() => {
+  const monthDays = calendarDays.value.filter(day => day.isCurrentMonth)
+  const workedDays = monthDays.filter(day => day.hasWork).length
+  const scheduledDays = monthDays.filter(day => day.isScheduled && !day.hasWork).length
+  const earnings = monthDays
+    .filter(day => day.hasWork)
+    .reduce((total, day) => total + Number(day.totalEarnings), 0)
+
+  return {
+    workedDays,
+    scheduledDays,
+    earnings: earnings.toFixed(2)
+  }
+})
+
+const formatScheduleDate = (dateStr) => {
+  if (!dateStr) return ''
+
+  try {
+    return format(parseISO(dateStr), 'EEEE, MMMM d, yyyy')
+  } catch {
+    return dateStr
+  }
+}
+
+const setScheduleDateOffset = (daysToAdd) => {
+  scheduleForm.value.date = format(addDays(new Date(), daysToAdd), 'yyyy-MM-dd')
+}
+
+const openScheduleDatePicker = () => {
+  if (!scheduleDateInput.value) return
+
+  if (typeof scheduleDateInput.value.showPicker === 'function') {
+    scheduleDateInput.value.showPicker()
+    return
+  }
+
+  scheduleDateInput.value.focus()
+}
 
 const fetchCalendarData = async () => {
   try {
@@ -483,6 +553,44 @@ onMounted(() => {
 .calendar-page {
   max-width: 1200px;
   margin: 0 auto;
+  width: 100%;
+  padding-inline: clamp(0.75rem, 2.8vw, 1.5rem);
+  padding-bottom: calc(var(--spacing-lg) + 5rem + env(safe-area-inset-bottom));
+}
+
+.calendar-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-lg);
+
+  .summary-chip {
+    background: linear-gradient(145deg, var(--bg-primary), var(--bg-secondary));
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 0.75rem;
+    box-shadow: var(--shadow-sm);
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+
+    .chip-label {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    strong {
+      font-size: 1.15rem;
+      color: var(--text-primary);
+      line-height: 1;
+    }
+
+    &.earnings strong {
+      color: var(--success);
+    }
+  }
 }
 
 .page-header {
@@ -505,6 +613,10 @@ onMounted(() => {
       color: var(--text-secondary);
     }
   }
+
+  .header-actions .btn {
+    min-height: 44px;
+  }
 }
 
 .calendar-controls {
@@ -520,7 +632,13 @@ onMounted(() => {
     color: var(--text-primary);
     min-width: 200px;
     text-align: center;
+    line-height: 1.2;
   }
+}
+
+.calendar-grid-scroll {
+  overflow-x: auto;
+  overflow-y: visible;
 }
 
 .calendar-grid {
@@ -528,6 +646,8 @@ onMounted(() => {
   border-radius: var(--radius-lg);
   padding: var(--spacing-lg);
   box-shadow: var(--shadow-sm);
+  width: 100%;
+  min-width: 760px;
 }
 
 .calendar-header {
@@ -649,6 +769,7 @@ onMounted(() => {
   gap: var(--spacing-lg);
   justify-content: center;
   margin-top: var(--spacing-lg);
+  flex-wrap: wrap;
   
   .legend-item {
     display: flex;
@@ -673,6 +794,15 @@ onMounted(() => {
   }
 }
 
+.calendar-grid-scroll::-webkit-scrollbar {
+  height: 8px;
+}
+
+.calendar-grid-scroll::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: var(--radius-full);
+}
+
 // Modal styles
 .modal-overlay {
   position: fixed;
@@ -684,7 +814,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  z-index: 1300;
   padding: var(--spacing-md);
 }
 
@@ -693,8 +823,11 @@ onMounted(() => {
   border-radius: var(--radius-lg);
   max-width: 500px;
   width: 100%;
+  display: flex;
+  flex-direction: column;
   max-height: 90vh;
   overflow-y: auto;
+  overscroll-behavior: contain;
   box-shadow: var(--shadow-lg);
 }
 
@@ -739,9 +872,81 @@ onMounted(() => {
 .modal-footer {
   display: flex;
   gap: var(--spacing-md);
+  flex-wrap: wrap;
   justify-content: flex-end;
   padding: var(--spacing-lg);
   border-top: 1px solid var(--border-color);
+}
+
+.schedule-modal {
+  width: min(560px, calc(100vw - 2rem));
+}
+
+.schedule-modal-body {
+  padding-bottom: max(var(--spacing-lg), env(safe-area-inset-bottom));
+}
+
+.schedule-calendar-element {
+  margin-top: calc(var(--spacing-xs) * -1);
+  margin-bottom: var(--spacing-md);
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, var(--bg-secondary), var(--bg-tertiary));
+}
+
+.calendar-element-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  margin-bottom: 0.6rem;
+
+  i {
+    color: var(--primary);
+  }
+
+  span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.calendar-quick-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.calendar-chip {
+  border: 1px solid var(--border);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border-radius: var(--radius-full);
+  padding: 0.35rem 0.65rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.2;
+  transition: all 0.2s ease;
+
+  &:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+  }
+
+  &.primary {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: #fff;
+
+    &:hover {
+      filter: brightness(0.95);
+      color: #fff;
+    }
+  }
 }
 
 .form-group {
@@ -802,7 +1007,14 @@ onMounted(() => {
 }
 
 @media (max-width: 768px) {
+  .calendar-page {
+    max-width: 100%;
+    padding-inline: 0.75rem;
+  }
+
   .page-header {
+    margin-bottom: var(--spacing-lg);
+
     .header-content h1 {
       font-size: 1.5rem;
     }
@@ -817,19 +1029,38 @@ onMounted(() => {
       }
     }
   }
+
+  .calendar-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+
+    .summary-chip.earnings {
+      grid-column: 1 / -1;
+    }
+  }
   
   .calendar-controls h2 {
     font-size: 1.25rem;
-    min-width: 150px;
+    min-width: 0;
+    flex: 1;
   }
   
   .calendar-grid {
-    padding: var(--spacing-md);
+    padding: 0.75rem;
+    min-width: 0;
+  }
+
+  .calendar-grid-scroll {
+    overflow-x: visible;
+  }
+
+  .calendar-header,
+  .calendar-body {
+    gap: 0.35rem;
   }
   
   .calendar-day {
-    min-height: 100px;
-    padding: var(--spacing-xs);
+    min-height: clamp(74px, 12vw, 92px);
+    padding: 0.3rem;
     
     .day-number {
       font-size: 0.875rem;
@@ -842,6 +1073,191 @@ onMounted(() => {
   
   .form-row {
     grid-template-columns: 1fr;
+  }
+
+  .modal-overlay {
+    padding: 0;
+    align-items: flex-end;
+  }
+
+  .modal-content {
+    max-width: 100%;
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    height: 70dvh;
+    max-height: 70dvh;
+  }
+
+  .schedule-modal {
+    width: 100%;
+  }
+
+  .schedule-modal .modal-header,
+  .schedule-modal .modal-body,
+  .schedule-modal .modal-footer {
+    padding-inline: var(--spacing-lg);
+  }
+
+  .schedule-modal .modal-header h3 {
+    font-size: 1.1rem;
+    line-height: 1.25;
+    margin-right: var(--spacing-sm);
+  }
+
+  .schedule-modal .form-control {
+    font-size: 16px;
+  }
+
+  .schedule-calendar-element {
+    padding: 0.7rem;
+  }
+
+  .calendar-quick-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .calendar-chip {
+    width: 100%;
+    min-height: 38px;
+  }
+
+  .schedule-modal-footer {
+    width: 100%;
+    flex-direction: column-reverse;
+    gap: var(--spacing-sm);
+    padding-bottom: calc(var(--spacing-lg) + env(safe-area-inset-bottom));
+  }
+
+  .schedule-modal-footer .btn {
+    width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .calendar-page {
+    padding-inline: 0.625rem;
+  }
+
+  .page-header {
+    gap: 0.75rem;
+
+    .header-content {
+      h1 {
+        font-size: 1.3rem;
+      }
+
+      p {
+        font-size: 0.88rem;
+      }
+    }
+
+    .header-actions {
+      button {
+        padding: 0.6rem 0.5rem;
+        font-size: 0.86rem;
+      }
+    }
+  }
+
+  .calendar-summary {
+    gap: 0.4rem;
+
+    .summary-chip {
+      padding: 0.6rem;
+
+      .chip-label {
+        font-size: 0.68rem;
+      }
+
+      strong {
+        font-size: 0.96rem;
+      }
+    }
+  }
+
+  .calendar-controls {
+    gap: 0.35rem;
+    margin-bottom: 0.75rem;
+
+    .btn-icon {
+      width: 34px;
+      height: 34px;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    h2 {
+      font-size: 1.02rem;
+      margin: 0;
+    }
+  }
+
+  .calendar-grid {
+    padding: 0.625rem;
+    border-radius: var(--radius-md);
+    min-width: 0;
+  }
+
+  .calendar-grid-scroll {
+    overflow-x: visible;
+  }
+
+  .calendar-header,
+  .calendar-body {
+    gap: 0.2rem;
+  }
+
+  .calendar-header .day-label {
+    font-size: 0.62rem;
+    padding: 0.2rem 0.1rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+  }
+
+  .calendar-day {
+    min-height: clamp(58px, 14vw, 72px);
+    padding: 0.2rem;
+    border-radius: 0.5rem;
+
+    .day-number {
+      font-size: 0.74rem;
+      margin-bottom: 0.06rem;
+      line-height: 1;
+    }
+
+    .earnings,
+    .scheduled-label {
+      font-size: 0.54rem;
+      line-height: 1.1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .day-details {
+      margin-top: 0;
+    }
+
+    .day-actions {
+      display: none;
+    }
+
+    .btn-icon-sm {
+      padding: 3px 6px;
+      font-size: 0.7rem;
+    }
+  }
+
+  .calendar-legend {
+    margin-top: 0.85rem;
+    gap: 0.5rem;
+
+    .legend-item {
+      font-size: 0.74rem;
+      gap: 0.35rem;
+    }
   }
 }
 </style>
