@@ -10,6 +10,8 @@ const normalizeApiBase = (value) => {
   return `${withoutApiSuffix}/api`
 }
 
+const isAbsoluteUrl = (value) => /^https?:\/\//i.test(String(value || '').trim())
+
 // Determine base URL based on environment
 const getBaseURL = () => {
   const configuredBase = process.env.VUE_APP_API_URL || process.env.VITE_API_URL
@@ -21,14 +23,27 @@ const getBaseURL = () => {
     const isNetlifyHost = host.endsWith('.netlify.app')
     const isVercelHost = host.endsWith('.vercel.app')
 
-    if ((isNetlifyHost || isVercelHost) && !normalizedConfiguredBase) {
+    const configuredIsRelative = normalizedConfiguredBase && !isAbsoluteUrl(normalizedConfiguredBase)
+
+    if ((isNetlifyHost || isVercelHost) && (!normalizedConfiguredBase || configuredIsRelative)) {
       return normalizeApiBase(DEFAULT_PROD_API_ORIGIN)
     }
   }
 
   // Production: use environment variable
   if (process.env.NODE_ENV === 'production') {
-    if (normalizedConfiguredBase) return normalizedConfiguredBase
+    if (normalizedConfiguredBase) {
+      const isLocalHost = typeof window !== 'undefined'
+        ? ['localhost', '127.0.0.1'].includes(window.location.hostname)
+        : false
+
+      // In production on real hosts, avoid relative API base that points back to static host.
+      if (!isAbsoluteUrl(normalizedConfiguredBase) && !isLocalHost) {
+        return normalizeApiBase(DEFAULT_PROD_API_ORIGIN)
+      }
+
+      return normalizedConfiguredBase
+    }
 
     // Netlify fallback to known Render backend if env var is missing.
     return normalizeApiBase(DEFAULT_PROD_API_ORIGIN)
